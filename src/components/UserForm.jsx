@@ -75,17 +75,9 @@ const UserForm = () => {
 
     const fileObjects = await Promise.all(files.map(readAsDataURL));
     
-    // Check if it will exceed localStorage limits (approx 5MB)
-    try {
-      const testStorage = JSON.stringify([...uploadedFiles, ...fileObjects]);
-      if (testStorage.length > 4500000) {
-        alert("Warning: Total file size is too large for local simulation. Please upload smaller files or use links.");
-        return;
-      }
-      setUploadedFiles([...uploadedFiles, ...fileObjects]);
-    } catch (err) {
-      alert("Storage limit exceeded.");
-    }
+    // With a real database, we don't have the 5MB localStorage limit anymore.
+    // However, if the payload exceeds the Express JSON limit (e.g., 50MB), it might still fail.
+    setUploadedFiles([...uploadedFiles, ...fileObjects]);
   };
 
   const removeFile = (index) => {
@@ -94,24 +86,34 @@ const UserForm = () => {
     setUploadedFiles(newFiles);
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     
     const validLinks = urlLinks.filter(l => l.trim() !== '');
     
-    const submissions = JSON.parse(localStorage.getItem('moreidea_submissions') || '[]');
     const newSubmission = {
-      id: Date.now().toString(),
-      date: new Date().toISOString(),
       data: formData,
       files: uploadedFiles,
       links: validLinks
     };
     
-    localStorage.setItem('moreidea_submissions', JSON.stringify([...submissions, newSubmission]));
-    localStorage.removeItem('moreidea_form_draft'); // clear draft
-    
-    setIsSubmitted(true);
+    try {
+      const response = await fetch('/api/submissions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newSubmission)
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to save submission');
+      }
+      
+      localStorage.removeItem('moreidea_form_draft'); // clear draft
+      setIsSubmitted(true);
+    } catch (err) {
+      console.error('Error submitting form:', err);
+      alert('Failed to submit form. Please try again.');
+    }
   };
 
   if (isSubmitted) {

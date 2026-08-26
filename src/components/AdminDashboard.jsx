@@ -22,10 +22,16 @@ const AdminDashboard = () => {
     loadSubmissions();
   }, []);
 
-  const loadSubmissions = () => {
-    const data = JSON.parse(localStorage.getItem('moreidea_submissions') || '[]');
-    data.sort((a, b) => new Date(b.date) - new Date(a.date));
-    setSubmissions(data);
+  const loadSubmissions = async () => {
+    try {
+      const response = await fetch('/api/submissions');
+      if (response.ok) {
+        const data = await response.json();
+        setSubmissions(data);
+      }
+    } catch (error) {
+      console.error('Error fetching submissions:', error);
+    }
   };
 
   const handleLogin = (e) => {
@@ -48,35 +54,50 @@ const AdminDashboard = () => {
     setSelectedSubmission(null);
   };
 
-  const handleDeleteSubmission = (id, e) => {
+  const handleDeleteSubmission = async (id, e) => {
     if (e) e.stopPropagation();
     if (window.confirm('Are you sure you want to delete this submission? This action cannot be undone.')) {
-      const updatedSubmissions = submissions.filter(sub => sub.id !== id);
-      localStorage.setItem('moreidea_submissions', JSON.stringify(updatedSubmissions));
-      setSubmissions(updatedSubmissions);
-      if (selectedSubmission && selectedSubmission.id === id) {
-        setSelectedSubmission(null);
+      try {
+        const response = await fetch(`/api/submissions/${id}`, { method: 'DELETE' });
+        if (response.ok) {
+          const updatedSubmissions = submissions.filter(sub => sub.id !== id);
+          setSubmissions(updatedSubmissions);
+          if (selectedSubmission && selectedSubmission.id === id) {
+            setSelectedSubmission(null);
+          }
+        } else {
+          alert('Failed to delete submission');
+        }
+      } catch (error) {
+        console.error('Error deleting submission:', error);
       }
     }
   };
 
-  const handleDeleteFile = (subId, fileId) => {
+  const handleDeleteFile = async (subId, fileId) => {
     if (window.confirm('Are you sure you want to delete this file permanently?')) {
-      const updatedSubmissions = submissions.map(sub => {
-        if (sub.id === subId) {
-          return {
-            ...sub,
-            files: sub.files.filter(f => f.id !== fileId)
-          };
+      try {
+        const response = await fetch(`/api/submissions/${subId}/files/${fileId}`, { method: 'DELETE' });
+        if (response.ok) {
+          const updatedSubmissions = submissions.map(sub => {
+            if (sub.id === subId) {
+              return {
+                ...sub,
+                files: sub.files.filter(f => f.id !== fileId)
+              };
+            }
+            return sub;
+          });
+          setSubmissions(updatedSubmissions);
+          
+          if (selectedSubmission && selectedSubmission.id === subId) {
+            setSelectedSubmission(updatedSubmissions.find(s => s.id === subId));
+          }
+        } else {
+          alert('Failed to delete file');
         }
-        return sub;
-      });
-      localStorage.setItem('moreidea_submissions', JSON.stringify(updatedSubmissions));
-      setSubmissions(updatedSubmissions);
-      
-      // Update selected submission if we are viewing it
-      if (selectedSubmission && selectedSubmission.id === subId) {
-        setSelectedSubmission(updatedSubmissions.find(s => s.id === subId));
+      } catch (error) {
+        console.error('Error deleting file:', error);
       }
     }
   };
