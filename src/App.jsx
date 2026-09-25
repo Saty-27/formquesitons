@@ -21,14 +21,14 @@ const AppContent = () => {
     <>
       {showIntro && (
         <div className="intro-overlay">
-          <img src="/logo.svg" alt="MoreIdea Logo" className="intro-logo" />
+          <img src="/logo.svg" alt="inEdible | MoreIdeaLabs" className="intro-logo" />
         </div>
       )}
       
       <div className="app-container">
         <header className="header">
           <Link to="/">
-            <img src="/logo.svg" alt="MoreIdea Logo" className="logo" />
+            <img src="/logo.svg" alt="inEdible | MoreIdeaLabs" className="logo" />
           </Link>
           <nav>
             {!isAdmin ? (

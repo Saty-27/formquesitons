@@ -14,7 +14,7 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // Database Connection
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/moreidea';
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/inedible';
 mongoose.connect(MONGODB_URI)
   .then(() => console.log('Connected to MongoDB successfully!'))
   .catch((err) => console.error('MongoDB connection error:', err));

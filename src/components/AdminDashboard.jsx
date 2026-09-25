@@ -1,6 +1,33 @@
 import React, { useState, useEffect } from 'react';
-import { questionnaire } from '../data/questions';
-import { Users, FileText, Database, ChevronLeft, Calendar, Paperclip, Lock, User, Trash2, Download, ExternalLink, Image as ImageIcon, FolderOpen, X } from 'lucide-react';
+import { 
+  questionnaire, 
+  recommendations, 
+  materialsChecklist, 
+  coverFields, 
+  totalPart1Questions 
+} from '../data/questions';
+import { 
+  Users, 
+  FileText, 
+  Database, 
+  ChevronLeft, 
+  Calendar, 
+  Paperclip, 
+  Lock, 
+  User, 
+  Trash2, 
+  Download, 
+  ExternalLink, 
+  Image as ImageIcon, 
+  FolderOpen, 
+  X, 
+  Check, 
+  Mail, 
+  Phone, 
+  CheckCircle, 
+  ListChecks, 
+  Sparkles 
+} from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const AdminDashboard = () => {
@@ -16,7 +43,7 @@ const AdminDashboard = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (sessionStorage.getItem('moreidea_admin_auth') === 'true') {
+    if (sessionStorage.getItem('inedible_admin_auth') === 'true' || sessionStorage.getItem('moreidea_admin_auth') === 'true') {
       setIsAuthenticated(true);
     }
     loadSubmissions();
@@ -36,10 +63,18 @@ const AdminDashboard = () => {
 
   const handleLogin = (e) => {
     e.preventDefault();
-    if (username === 'moreideabalsuser' && password === 'moreidealabsquesitonn@1234') {
+    const u = username.trim().toLowerCase();
+    const p = password.trim();
+    if (
+      (u === 'admin' && p === 'admin123') ||
+      (u === 'moreidealabs' && p === 'moreidealabs@123') ||
+      (u === 'designblast' && p === 'designblast@123') ||
+      (u === 'inedible' && p === 'inedible@123') ||
+      (u === 'moreideabalsuser' && p === 'moreidealabsquesitonn@1234')
+    ) {
       setIsAuthenticated(true);
       setLoginError(false);
-      sessionStorage.setItem('moreidea_admin_auth', 'true');
+      sessionStorage.setItem('inedible_admin_auth', 'true');
     } else {
       setLoginError(true);
     }
@@ -47,6 +82,7 @@ const AdminDashboard = () => {
 
   const handleLogout = () => {
     setIsAuthenticated(false);
+    sessionStorage.removeItem('inedible_admin_auth');
     sessionStorage.removeItem('moreidea_admin_auth');
   };
 
@@ -109,45 +145,97 @@ const AdminDashboard = () => {
     }
 
     let csvContent = "data:text/csv;charset=utf-8,";
+    
+    // Headers
+    const headers = [
+      "Submission ID", 
+      "Date", 
+      "Filled By (Name & Role)", 
+      "Phone / WhatsApp", 
+      "Email", 
+      "Date Completed"
+    ];
+
+    // Part 1 Questions
     const allQuestions = [];
-    questionnaire.forEach(part => {
-      part.questions.forEach(q => {
+    questionnaire.forEach(sec => {
+      sec.questions.forEach(q => {
         allQuestions.push(q);
+        headers.push(`"${q.text.replace(/"/g, '""')}"`);
       });
     });
 
-    const headers = ["Submission ID", "Date"];
-    allQuestions.forEach(q => headers.push(`"${q.id}"`));
+    // Part 2 Recommendations
+    recommendations.forEach(rec => {
+      headers.push(`"Part 2: ${rec.num}. ${rec.title.replace(/"/g, '""')}"`);
+      headers.push(`"Part 2: ${rec.num}. ${rec.title.replace(/"/g, '""')} - Notes"`);
+    });
+    headers.push('"Part 2: Other Features"');
+
+    // Part 3 Materials Checklist
+    materialsChecklist.forEach(item => {
+      headers.push(`"Part 3: ${item.num}. ${item.text.replace(/"/g, '""')}"`);
+    });
+
+    // Links
+    headers.push('"Shared Links"');
+
     csvContent += headers.join(",") + "\r\n";
 
     submissions.forEach(sub => {
+      const data = sub.data || {};
       const row = [
         `"${sub.id}"`,
-        `"${new Date(sub.date).toLocaleString()}"`
+        `"${new Date(sub.date).toLocaleString()}"`,
+        `"${(data.client_name || '').replace(/"/g, '""')}"`,
+        `"${(data.client_phone || '').replace(/"/g, '""')}"`,
+        `"${(data.client_email || '').replace(/"/g, '""')}"`,
+        `"${(data.client_date || '').replace(/"/g, '""')}"`
       ];
-      
-      allQuestions.forEach(q => {
-        let answer = sub.data[q.id];
-        if (Array.isArray(answer)) {
-          answer = answer.map(item => item === 'Other' && sub.data[`${q.id}_other`] ? `Other: ${sub.data[`${q.id}_other`]}` : item).join('; ');
-        } else if (answer === 'Other' && sub.data[`${q.id}_other`]) {
-          answer = `Other: ${sub.data[`${q.id}_other`]}`;
-        }
 
-        if (answer) {
-          const escapedAnswer = answer.toString().replace(/"/g, '""');
-          row.push(`"${escapedAnswer}"`);
-        } else {
-          row.push('""');
+      // Part 1 Answers
+      allQuestions.forEach(q => {
+        const pills = data[q.id];
+        const textAns = data[`${q.id}_text`];
+        let answerParts = [];
+        if (Array.isArray(pills) && pills.length > 0) {
+          answerParts.push(`Selected: ${pills.join(', ')}`);
+        } else if (pills && typeof pills === 'string') {
+          answerParts.push(pills);
         }
+        if (textAns && textAns.trim() !== '') {
+          answerParts.push(textAns.trim());
+        }
+        const fullAns = answerParts.join(' | ');
+        row.push(`"${fullAns.replace(/"/g, '""')}"`);
       });
+
+      // Part 2 Recommendations
+      recommendations.forEach(rec => {
+        const val = data[rec.id] || '';
+        const notes = data[`${rec.id}_notes`] || '';
+        row.push(`"${val.replace(/"/g, '""')}"`);
+        row.push(`"${notes.replace(/"/g, '""')}"`);
+      });
+      row.push(`"${(data.rec_other || '').replace(/"/g, '""')}"`);
+
+      // Part 3 Checklist
+      materialsChecklist.forEach(item => {
+        const val = data[item.id] || '';
+        row.push(`"${val.replace(/"/g, '""')}"`);
+      });
+
+      // Links
+      const links = (sub.links || []).join('; ');
+      row.push(`"${links.replace(/"/g, '""')}"`);
+
       csvContent += row.join(",") + "\r\n";
     });
 
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `moreidea_submissions_${new Date().toISOString().slice(0,10)}.csv`);
+    link.setAttribute("download", `inEdible_discovery_questionnaire_${new Date().toISOString().slice(0, 10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -156,18 +244,22 @@ const AdminDashboard = () => {
   if (!isAuthenticated) {
     return (
       <div className="admin-container">
-        <div className="admin-login form-card">
-          <Lock size={48} color="var(--primary)" style={{ margin: '0 auto 1rem' }} />
-          <h2 style={{ color: 'var(--primary)', marginBottom: '0.5rem' }}>Admin Access</h2>
-          <p style={{ color: 'var(--text-muted)' }}>Please enter your credentials to view submissions.</p>
+        <div className="admin-login form-card" style={{ maxWidth: '420px', margin: '4rem auto' }}>
+          <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: '#FCE7F3', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem' }}>
+            <Lock size={32} color="var(--primary)" />
+          </div>
+          <h2 style={{ color: 'var(--primary)', marginBottom: '0.5rem', textAlign: 'center', fontWeight: 800 }}>Admin Access</h2>
+          <p style={{ color: 'var(--text-muted)', textAlign: 'center', fontSize: '0.95rem', marginBottom: '2rem' }}>
+            Sign in to view inEdible discovery submissions & materials.
+          </p>
           
           <form className="login-form" onSubmit={handleLogin}>
-            <div>
+            <div style={{ marginBottom: '1.25rem' }}>
               <div style={{ position: 'relative' }}>
                 <User size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
                 <input 
                   type="text" 
-                  placeholder="Username" 
+                  placeholder="Username (e.g. moreidealabs or admin)" 
                   className="input-field" 
                   style={{ paddingLeft: '2.5rem' }}
                   value={username}
@@ -176,7 +268,7 @@ const AdminDashboard = () => {
                 />
               </div>
             </div>
-            <div>
+            <div style={{ marginBottom: '1.25rem' }}>
               <div style={{ position: 'relative' }}>
                 <Lock size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
                 <input 
@@ -192,11 +284,13 @@ const AdminDashboard = () => {
             </div>
             
             {loginError && (
-              <p style={{ color: '#ef4444', fontSize: '0.9rem', textAlign: 'left' }}>Invalid username or password.</p>
+              <p style={{ color: '#ef4444', fontSize: '0.9rem', textAlign: 'left', marginBottom: '1rem' }}>
+                Invalid credentials. Please try again.
+              </p>
             )}
             
-            <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: '1rem' }}>
-              Login
+            <button type="submit" className="btn btn-primary" style={{ width: '100%', padding: '0.85rem' }}>
+              Sign In to Dashboard
             </button>
           </form>
         </div>
@@ -206,19 +300,18 @@ const AdminDashboard = () => {
 
   // File Manager View
   if (currentTab === 'files') {
-    // Collect all files from all submissions
     const allFiles = [];
     const allLinks = [];
     
     submissions.forEach(sub => {
       if (sub.files) {
         sub.files.forEach(f => {
-          allFiles.push({ ...f, submissionId: sub.id, subDate: sub.date });
+          allFiles.push({ ...f, submissionId: sub.id, subDate: sub.date, clientName: sub.data?.client_name || 'Client' });
         });
       }
       if (sub.links) {
         sub.links.forEach(l => {
-          allLinks.push({ url: l, submissionId: sub.id, subDate: sub.date });
+          allLinks.push({ url: l, submissionId: sub.id, subDate: sub.date, clientName: sub.data?.client_name || 'Client' });
         });
       }
     });
@@ -228,7 +321,7 @@ const AdminDashboard = () => {
         <div className="dashboard-header">
           <div>
             <h2 style={{ fontSize: '2.2rem', color: 'var(--text-main)', marginBottom: '0.5rem', fontWeight: '700', letterSpacing: '-0.02em' }}>File Manager</h2>
-            <p style={{ color: 'var(--text-muted)' }}>View and manage all uploaded files and links across all submissions</p>
+            <p style={{ color: 'var(--text-muted)' }}>Uploaded documents, photos, and Google Drive links</p>
           </div>
           <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
             <button className="btn btn-outline" onClick={() => setCurrentTab('submissions')}>
@@ -241,21 +334,29 @@ const AdminDashboard = () => {
           <div className="empty-state">
             <FolderOpen size={56} color="var(--border-color)" style={{ margin: '0 auto 1.5rem' }} />
             <h3 style={{ color: 'var(--text-main)' }}>No files uploaded yet</h3>
-            <p>Uploaded documents and links will appear here.</p>
+            <p>Uploaded documents, product images, and Drive links will appear here.</p>
           </div>
         ) : (
           <div className="detail-view">
             {allLinks.length > 0 && (
               <div style={{ marginBottom: '3rem' }}>
-                <h3 style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}><ExternalLink size={20}/> External URL Links</h3>
+                <h3 style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--primary)' }}>
+                  <ExternalLink size={20}/> Shared Google Drive & External Links ({allLinks.length})
+                </h3>
                 <div style={{ display: 'grid', gap: '1rem' }}>
                   {allLinks.map((linkObj, idx) => (
-                    <div key={idx} style={{ background: '#f8fafc', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+                    <div key={idx} style={{ background: '#f8fafc', padding: '1rem 1.25rem', borderRadius: '8px', border: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
                       <div style={{ flex: 1, minWidth: '250px' }}>
-                        <a href={linkObj.url} target="_blank" rel="noopener noreferrer" style={{ wordBreak: 'break-all', fontWeight: 500, color: 'var(--primary)' }}>{linkObj.url}</a>
-                        <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>From Submission #{linkObj.submissionId.substring(linkObj.submissionId.length - 6)} • {new Date(linkObj.subDate).toLocaleDateString()}</p>
+                        <a href={linkObj.url} target="_blank" rel="noopener noreferrer" style={{ wordBreak: 'break-all', fontWeight: 600, color: 'var(--primary)' }}>
+                          {linkObj.url}
+                        </a>
+                        <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+                          From: {linkObj.clientName} • Submission #{linkObj.submissionId.substring(linkObj.submissionId.length - 6)} • {new Date(linkObj.subDate).toLocaleDateString()}
+                        </p>
                       </div>
-                      <a href={linkObj.url} target="_blank" rel="noopener noreferrer" className="btn btn-outline" style={{ padding: '0.4rem 0.75rem', fontSize: '0.85rem' }}>Open Link</a>
+                      <a href={linkObj.url} target="_blank" rel="noopener noreferrer" className="btn btn-outline" style={{ padding: '0.45rem 1rem', fontSize: '0.85rem' }}>
+                        Open in New Tab <ExternalLink size={14} style={{ marginLeft: '4px' }} />
+                      </a>
                     </div>
                   ))}
                 </div>
@@ -264,7 +365,9 @@ const AdminDashboard = () => {
 
             {allFiles.length > 0 && (
               <div>
-                <h3 style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Paperclip size={20}/> Uploaded Files & Images</h3>
+                <h3 style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--primary)' }}>
+                  <Paperclip size={20}/> Uploaded Files ({allFiles.length})
+                </h3>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '1.5rem' }}>
                   {allFiles.map((file, idx) => {
                     const isImage = file.type && file.type.startsWith('image/');
@@ -282,7 +385,7 @@ const AdminDashboard = () => {
                         <div style={{ padding: '1rem', flex: 1, display: 'flex', flexDirection: 'column' }}>
                           <h4 style={{ fontSize: '0.95rem', marginBottom: '0.25rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={file.name}>{file.name}</h4>
                           <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
-                            {(file.size / 1024).toFixed(1)} KB • Sub #{file.submissionId.substring(file.submissionId.length - 6)}
+                            {(file.size / 1024).toFixed(1)} KB • {file.clientName}
                           </p>
                           <div style={{ display: 'flex', gap: '0.5rem', marginTop: 'auto' }}>
                             {file.dataUrl && (
@@ -309,11 +412,13 @@ const AdminDashboard = () => {
 
   // Detailed Submission View
   if (selectedSubmission) {
+    const data = selectedSubmission.data || {};
+
     return (
       <div className="admin-container">
         <div className="dashboard-header">
           <button className="btn btn-outline" onClick={handleBack}>
-            <ChevronLeft size={18} /> Back to Dashboard
+            <ChevronLeft size={18} /> Back to All Submissions
           </button>
           <div style={{ display: 'flex', gap: '1rem' }}>
             <button className="btn btn-danger" onClick={() => handleDeleteSubmission(selectedSubmission.id)}>
@@ -323,128 +428,262 @@ const AdminDashboard = () => {
         </div>
 
         <div className="detail-view">
-          <div style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1.5rem' }}>
-            <div>
-              <h3 style={{ fontSize: '1.4rem', color: 'var(--text-main)', marginBottom: '0.25rem' }}>
-                Submission ID: {selectedSubmission.id}
-              </h3>
-              <p style={{ color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          {/* Client Details Header Card */}
+          <div style={{ background: '#FAF5F8', border: '1px solid var(--border-color)', borderRadius: '12px', padding: '1.5rem 2rem', marginBottom: '2.5rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.25rem' }}>
+              <div>
+                <span style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  SUBMISSION #{selectedSubmission.id.substring(selectedSubmission.id.length - 6)}
+                </span>
+                <h2 style={{ fontSize: '1.8rem', color: 'var(--text-main)', marginTop: '0.2rem', fontWeight: 800 }}>
+                  {data.client_name || 'Anonymous Client'}
+                </h2>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
                 <Calendar size={16} />
-                {new Date(selectedSubmission.date).toLocaleString()}
-              </p>
+                Submitted on {new Date(selectedSubmission.date).toLocaleString()}
+              </div>
             </div>
-            
-            <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-              {selectedSubmission.links && selectedSubmission.links.length > 0 && (
-                <div style={{ background: '#f8fafc', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-color)', minWidth: '250px' }}>
-                  <h4 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                    <ExternalLink size={16} /> Provided Links ({selectedSubmission.links.length})
-                  </h4>
-                  <ul style={{ listStyle: 'none', padding: 0, margin: 0, fontSize: '0.9rem' }}>
-                    {selectedSubmission.links.map((link, idx) => (
-                      <li key={idx} style={{ marginBottom: '0.25rem' }}>
-                        <a href={link} target="_blank" rel="noopener noreferrer" style={{wordBreak: 'break-all'}}>{link}</a>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
 
-              {selectedSubmission.files && selectedSubmission.files.length > 0 && (
-                <div style={{ background: '#f8fafc', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-color)', minWidth: '300px' }}>
-                  <h4 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
-                    <Paperclip size={16} /> Attached Files ({selectedSubmission.files.length})
-                  </h4>
-                  <ul style={{ listStyle: 'none', padding: 0, margin: 0, fontSize: '0.9rem' }}>
-                    {selectedSubmission.files.map((file, idx) => (
-                      <li key={idx} style={{ marginBottom: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'white', padding: '0.5rem', borderRadius: '4px', border: '1px solid #e2e8f0' }}>
-                        <button 
-                          style={{ border: 'none', background: 'transparent', textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '180px', cursor: 'pointer', color: 'var(--primary)', fontWeight: 500, padding: 0 }} 
-                          title={`Preview ${file.name}`}
-                          onClick={() => setPreviewFile(file)}
-                        >
-                          {file.name}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', borderTop: '1px solid var(--border-color)', paddingTop: '1rem' }}>
+              <div>
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', fontWeight: 600 }}>Phone / WhatsApp:</span>
+                <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>{data.client_phone || '—'}</span>
+              </div>
+              <div>
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', fontWeight: 600 }}>Email:</span>
+                <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>{data.client_email || '—'}</span>
+              </div>
+              <div>
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', fontWeight: 600 }}>Date Completed:</span>
+                <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>{data.client_date || '—'}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Links and Attachments */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem', marginBottom: '2.5rem' }}>
+            {/* Cloud Links */}
+            <div style={{ background: '#FFFFFF', padding: '1.25rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+              <h4 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', color: 'var(--primary)' }}>
+                <ExternalLink size={18} /> Provided Cloud Links ({selectedSubmission.links?.length || 0})
+              </h4>
+              {selectedSubmission.links && selectedSubmission.links.length > 0 ? (
+                <ul style={{ listStyle: 'none', padding: 0, margin: 0, fontSize: '0.9rem' }}>
+                  {selectedSubmission.links.map((link, idx) => (
+                    <li key={idx} style={{ marginBottom: '0.5rem' }}>
+                      <a href={link} target="_blank" rel="noopener noreferrer" style={{ wordBreak: 'break-all', color: 'var(--primary)', fontWeight: 500 }}>
+                        {link}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: 0 }}>No external links provided.</p>
+              )}
+            </div>
+
+            {/* Attached Files */}
+            <div style={{ background: '#FFFFFF', padding: '1.25rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+              <h4 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', color: 'var(--primary)' }}>
+                <Paperclip size={18} /> Uploaded Files ({selectedSubmission.files?.length || 0})
+              </h4>
+              {selectedSubmission.files && selectedSubmission.files.length > 0 ? (
+                <ul style={{ listStyle: 'none', padding: 0, margin: 0, fontSize: '0.9rem' }}>
+                  {selectedSubmission.files.map((file, idx) => (
+                    <li key={idx} style={{ marginBottom: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#F8FAFC', padding: '0.5rem 0.75rem', borderRadius: '4px', border: '1px solid var(--border-color)' }}>
+                      <button 
+                        style={{ border: 'none', background: 'transparent', textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '200px', cursor: 'pointer', color: 'var(--primary)', fontWeight: 500, padding: 0 }} 
+                        title={`Preview ${file.name}`}
+                        onClick={() => setPreviewFile(file)}
+                      >
+                        {file.name}
+                      </button>
+                      <div style={{ display: 'flex', gap: '0.25rem' }}>
+                        {file.dataUrl && (
+                          <a href={file.dataUrl} download={file.name} className="btn btn-outline" style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem' }} title="Download File">
+                            <Download size={14} />
+                          </a>
+                        )}
+                        <button className="btn btn-danger" style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem' }} onClick={() => handleDeleteFile(selectedSubmission.id, file.id)} title="Delete File">
+                          <Trash2 size={14} />
                         </button>
-                        <div style={{ display: 'flex', gap: '0.25rem' }}>
-                          {file.dataUrl && (
-                            <a href={file.dataUrl} download={file.name} className="btn btn-outline" style={{ padding: '0.25rem', border: 'none', background: '#e2e8f0' }} title="Download File">
-                              <Download size={14} />
-                            </a>
-                          )}
-                          <button className="btn btn-danger" style={{ padding: '0.25rem', border: 'none' }} onClick={() => handleDeleteFile(selectedSubmission.id, file.id)} title="Delete File">
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: 0 }}>No files uploaded directly.</p>
               )}
             </div>
           </div>
 
-          <hr style={{ border: 'none', borderTop: '1px solid var(--border-color)', margin: '0 0 2rem 0' }} />
+          <hr style={{ border: 'none', borderTop: '2px solid var(--border-color)', margin: '0 0 2.5rem 0' }} />
 
-          {questionnaire.map((part) => {
-            const hasAnswers = part.questions.some(q => 
-              selectedSubmission.data[q.id] && 
-              (Array.isArray(selectedSubmission.data[q.id]) ? selectedSubmission.data[q.id].length > 0 : selectedSubmission.data[q.id].toString().trim() !== '')
-            );
+          {/* PART 1: 20 SECTIONS */}
+          <div style={{ marginBottom: '3rem' }}>
+            <h2 style={{ fontSize: '1.6rem', color: 'var(--primary)', marginBottom: '1.5rem', fontWeight: 800 }}>
+              Part 1 — Discovery Questions (Q1–Q205)
+            </h2>
 
-            if (!hasAnswers) return null;
+            {questionnaire.map((sec) => {
+              const answeredQuestions = sec.questions.filter(q => {
+                const ans = data[q.id];
+                const textAns = data[`${q.id}_text`];
+                return (ans && (Array.isArray(ans) ? ans.length > 0 : String(ans).trim() !== '')) || (textAns && String(textAns).trim() !== '');
+              });
 
-            return (
-              <div key={part.id} className="detail-section">
-                <h3 style={{ color: 'var(--text-main)', marginBottom: '1.5rem', fontSize: '1.4rem', fontWeight: '700' }}>
-                  {part.title}
-                </h3>
-                
-                {part.questions.map(q => {
-                  const answer = selectedSubmission.data[q.id];
-                  if (!answer || (Array.isArray(answer) && answer.length === 0) || (typeof answer === 'string' && answer.trim() === '')) {
-                    return null;
-                  }
+              return (
+                <div key={sec.id} className="detail-section" style={{ background: '#FFFFFF', padding: '1.5rem 2rem', borderRadius: '10px', border: '1px solid var(--border-color)', marginBottom: '1.5rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
+                    <h3 style={{ color: 'var(--primary)', fontSize: '1.25rem', fontWeight: 700, margin: 0 }}>
+                      {sec.title}
+                    </h3>
+                    <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                      {answeredQuestions.length}/{sec.questions.length} answered
+                    </span>
+                  </div>
+
+                  {answeredQuestions.length === 0 ? (
+                    <p style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.9rem', margin: 0 }}>
+                      No answers provided in this section yet.
+                    </p>
+                  ) : (
+                    <div>
+                      {answeredQuestions.map(q => {
+                        const pills = data[q.id];
+                        const textAns = data[`${q.id}_text`];
+
+                        return (
+                          <div key={q.id} style={{ marginBottom: '1.5rem' }}>
+                            <p className="detail-q" style={{ fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.4rem', fontSize: '0.98rem' }}>
+                              {q.text}
+                            </p>
+                            <div className="detail-a" style={{ background: '#FAF6F8', padding: '0.85rem 1.25rem', borderRadius: '6px', borderLeft: '3px solid var(--primary)' }}>
+                              {Array.isArray(pills) && pills.length > 0 && (
+                                <div style={{ marginBottom: textAns ? '0.5rem' : '0' }}>
+                                  <span style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Selected: </span>
+                                  <span style={{ fontWeight: 600 }}>{pills.join(', ')}</span>
+                                </div>
+                              )}
+                              {textAns && (
+                                <p style={{ margin: 0, whiteSpace: 'pre-wrap', color: 'var(--text-main)', fontSize: '0.95rem' }}>
+                                  {textAns}
+                                </p>
+                              )}
+                              {!Array.isArray(pills) && pills && (
+                                <p style={{ margin: 0, whiteSpace: 'pre-wrap', color: 'var(--text-main)', fontSize: '0.95rem' }}>
+                                  {pills}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* PART 2: RECOMMENDATIONS */}
+          <div style={{ marginBottom: '3rem' }}>
+            <h2 style={{ fontSize: '1.6rem', color: 'var(--primary)', marginBottom: '1.5rem', fontWeight: 800 }}>
+              Part 2 — Recommended Features
+            </h2>
+            <div style={{ background: '#FFFFFF', padding: '1.5rem 2rem', borderRadius: '10px', border: '1px solid var(--border-color)' }}>
+              <div style={{ display: 'grid', gap: '1rem' }}>
+                {recommendations.map(rec => {
+                  const val = data[rec.id];
+                  const notes = data[`${rec.id}_notes`];
+
+                  let badgeColor = '#64748B';
+                  if (val === 'At launch') badgeColor = '#059669';
+                  if (val === 'Later') badgeColor = '#2563EB';
 
                   return (
-                    <div key={q.id} style={{ marginBottom: '1.5rem' }}>
-                      <p className="detail-q">{q.text}</p>
-                      <div className="detail-a">
-                        {Array.isArray(answer) ? (
-                          <ul style={{ margin: 0, paddingLeft: '1.5rem' }}>
-                            {answer.map((item, idx) => (
-                              <li key={idx}>
-                                {item === 'Other' && selectedSubmission.data[`${q.id}_other`]
-                                  ? `Other: ${selectedSubmission.data[`${q.id}_other`]}`
-                                  : item}
-                              </li>
-                            ))}
-                          </ul>
-                        ) : (
-                          <p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>
-                            {answer === 'Other' && selectedSubmission.data[`${q.id}_other`]
-                              ? `Other: ${selectedSubmission.data[`${q.id}_other`]}`
-                              : answer}
+                    <div key={rec.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem', paddingBottom: '0.75rem', borderBottom: '1px solid #f1f5f9' }}>
+                      <div style={{ flex: '1 1 300px' }}>
+                        <strong style={{ color: 'var(--text-main)' }}>{rec.num}. {rec.title}</strong>
+                        {notes && (
+                          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: '0.2rem', margin: 0 }}>
+                            <em>Note: {notes}</em>
                           </p>
+                        )}
+                      </div>
+                      <div>
+                        {val ? (
+                          <span style={{ background: badgeColor, color: '#FFFFFF', padding: '0.25rem 0.65rem', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 700 }}>
+                            {val}
+                          </span>
+                        ) : (
+                          <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Not answered</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+                {data.rec_other && (
+                  <div style={{ marginTop: '1rem', background: '#FAF6F8', padding: '1rem', borderRadius: '6px' }}>
+                    <strong style={{ color: 'var(--primary)', display: 'block', marginBottom: '0.25rem' }}>Other Feature Request:</strong>
+                    <p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{data.rec_other}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* PART 3: MATERIALS CHECKLIST */}
+          <div style={{ marginBottom: '3rem' }}>
+            <h2 style={{ fontSize: '1.6rem', color: 'var(--primary)', marginBottom: '1.5rem', fontWeight: 800 }}>
+              Part 3 — Materials Checklist
+            </h2>
+            <div style={{ background: '#FFFFFF', padding: '1.5rem 2rem', borderRadius: '10px', border: '1px solid var(--border-color)' }}>
+              <div style={{ display: 'grid', gap: '0.75rem' }}>
+                {materialsChecklist.map(item => {
+                  const val = data[item.id];
+                  let statusBg = '#64748B';
+                  if (val === 'Ready') statusBg = '#059669';
+                  if (val === 'In progress') statusBg = '#D97706';
+                  if (val === 'Need help') statusBg = '#DC2626';
+
+                  return (
+                    <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', paddingBottom: '0.5rem', borderBottom: '1px solid #f1f5f9' }}>
+                      <span style={{ fontSize: '0.95rem', color: 'var(--text-main)', fontWeight: 500 }}>
+                        {item.num}. {item.text}
+                      </span>
+                      <div>
+                        {val ? (
+                          <span style={{ background: statusBg, color: '#FFFFFF', padding: '0.25rem 0.65rem', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 700 }}>
+                            {val}
+                          </span>
+                        ) : (
+                          <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Not marked</span>
                         )}
                       </div>
                     </div>
                   );
                 })}
               </div>
-            );
-          })}
+            </div>
+          </div>
         </div>
       </div>
     );
   }
 
-  // Default Overview
+  // Submissions Overview
   return (
     <div className="admin-container">
       <div className="dashboard-header">
         <div>
-          <h2 style={{ fontSize: '2.2rem', color: 'var(--text-main)', marginBottom: '0.5rem', fontWeight: '700', letterSpacing: '-0.02em' }}>Admin Dashboard</h2>
-          <p style={{ color: 'var(--text-muted)' }}>Overview of all form submissions</p>
+          <h2 style={{ fontSize: '2.2rem', color: 'var(--text-main)', marginBottom: '0.5rem', fontWeight: '800', letterSpacing: '-0.02em' }}>
+            inEdible Submissions
+          </h2>
+          <p style={{ color: 'var(--text-muted)' }}>
+            Client Discovery Responses & Assets • MoreIdeaLabs
+          </p>
         </div>
         <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
           <button className="btn btn-outline" onClick={() => setCurrentTab('files')} style={{ backgroundColor: 'var(--surface-color)', color: 'var(--primary)', borderColor: 'var(--primary)' }}>
@@ -454,7 +693,7 @@ const AdminDashboard = () => {
             <Download size={16} /> Export CSV
           </button>
           <button className="btn btn-outline" onClick={() => navigate('/')}>
-            Form View
+            View Live Form
           </button>
           <button className="btn btn-outline" onClick={handleLogout}>
             Logout
@@ -477,7 +716,7 @@ const AdminDashboard = () => {
             <Users size={24} />
           </div>
           <div className="stat-content">
-            <h3>Recent (Last 7 Days)</h3>
+            <h3>Recent Submissions</h3>
             <p>{
               submissions.filter(s => {
                 const diffTime = Math.abs(new Date() - new Date(s.date));
@@ -505,22 +744,29 @@ const AdminDashboard = () => {
           <div className="empty-state">
             <FileText size={56} color="var(--border-color)" style={{ margin: '0 auto 1.5rem' }} />
             <h3 style={{ color: 'var(--text-main)' }}>No submissions yet</h3>
-            <p>When users submit the form, their data will appear here.</p>
+            <p>When the client submits their responses, their discovery data will appear here.</p>
           </div>
         ) : (
           <table>
             <thead>
               <tr>
                 <th>Submission ID</th>
+                <th>Client Name / Role</th>
                 <th>Date</th>
-                <th>Answers</th>
+                <th>Part 1 Answers</th>
                 <th>Attachments</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
               {submissions.map((sub, idx) => {
-                const answerCount = Object.keys(sub.data || {}).length;
+                const data = sub.data || {};
+                let answerCount = 0;
+                for (let i = 1; i <= totalPart1Questions; i++) {
+                  const qKey = `q${i}`;
+                  if (data[qKey] || data[`${qKey}_text`]) answerCount++;
+                }
+
                 const isNew = idx === 0 && (new Date() - new Date(sub.date)) < 86400000;
                 const attachmentCount = (sub.files?.length || 0) + (sub.links?.length || 0);
                 
@@ -528,12 +774,28 @@ const AdminDashboard = () => {
                   <tr key={sub.id}>
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                        <span style={{ fontFamily: 'monospace', fontWeight: 600, color: 'var(--primary)' }}>#{sub.id.substring(sub.id.length - 6)}</span>
+                        <span style={{ fontFamily: 'monospace', fontWeight: 600, color: 'var(--primary)' }}>
+                          #{sub.id.substring(sub.id.length - 6)}
+                        </span>
                         {isNew && <span className="badge badge-new">New</span>}
                       </div>
                     </td>
-                    <td><span style={{ fontWeight: 500 }}>{new Date(sub.date).toLocaleDateString()}</span> <span style={{ color: 'var(--text-muted)' }}>{new Date(sub.date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span></td>
-                    <td><span style={{ fontWeight: 500 }}>{answerCount}</span> <span style={{ color: 'var(--text-muted)' }}>/ 114</span></td>
+                    <td>
+                      <div style={{ fontWeight: 600, color: 'var(--text-main)' }}>
+                        {data.client_name || 'Anonymous Client'}
+                      </div>
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                        {data.client_email || data.client_phone || 'No contact specified'}
+                      </div>
+                    </td>
+                    <td>
+                      <span style={{ fontWeight: 500 }}>{new Date(sub.date).toLocaleDateString()}</span>{' '}
+                      <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>{new Date(sub.date).toLocaleTimeString([], { hour: '2-digit', minute:'2-digit' })}</span>
+                    </td>
+                    <td>
+                      <span style={{ fontWeight: 600, color: 'var(--primary)' }}>{answerCount}</span>{' '}
+                      <span style={{ color: 'var(--text-muted)' }}>/ {totalPart1Questions}</span>
+                    </td>
                     <td>
                       {attachmentCount > 0 ? (
                         <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--primary)', fontWeight: 500 }}>
@@ -550,7 +812,7 @@ const AdminDashboard = () => {
                           style={{ padding: '0.4rem 0.75rem', fontSize: '0.85rem' }}
                           onClick={() => setSelectedSubmission(sub)}
                         >
-                          View
+                          View Details
                         </button>
                         <button 
                           className="btn btn-danger" 
@@ -580,8 +842,8 @@ const AdminDashboard = () => {
           ) : (
             <div style={{ background: 'white', padding: '3rem', borderRadius: '8px', textAlign: 'center', maxWidth: '400px' }}>
               <FileText size={64} style={{ margin: '0 auto 1rem', color: 'var(--text-muted)' }} />
-              <h3 style={{wordBreak: 'break-all'}}>{previewFile.name}</h3>
-              <p style={{marginTop: '0.5rem', color: 'var(--text-muted)'}}>Preview is only available for images.</p>
+              <h3 style={{ wordBreak: 'break-all' }}>{previewFile.name}</h3>
+              <p style={{ marginTop: '0.5rem', color: 'var(--text-muted)' }}>Preview is only available for images.</p>
             </div>
           )}
           {previewFile.dataUrl && (
